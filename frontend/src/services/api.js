@@ -1,24 +1,40 @@
-import { supabase } from "./supabase";
-
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
-async function request(path, options = {}) {
-  const { data } = await supabase.auth.getSession();
-  const token = data?.session?.access_token;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    ...options,
-  });
+async function request(path, options = {}, { retries = 6, retryDelayMs = 450 } = {}) {
+  let attempt = 0;
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "Erro na requisição");
+  while (true) {
+    try {
+      const res = await fetch(`${API_URL}${path}`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        },
+        ...options,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Erro na requisição");
+      }
+
+      if (res.status === 204) return null;
+      return res.json();
+    } catch (err) {
+      const isNetworkError =
+        err instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(err?.message || "");
+
+      if (isNetworkError && attempt < retries) {
+        attempt += 1;
+        await sleep(retryDelayMs);
+        continue;
+      }
+
+      throw err;
+    }
   }
-  return res.json();
 }
 
 export const api = {

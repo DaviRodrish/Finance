@@ -7,14 +7,12 @@ import {
   Pencil,
 } from "lucide-react";
 import { api } from "./services/api";
-import { supabase } from "./services/supabase";
 import {
   formatBRL,
   shiftMonth,
   getCurrentYearMonth,
   parseMoney,
 } from "./utils/format";
-import Login from "./components/Login";
 import Sidebar from "./components/Sidebar";
 import ReceivablesTab from "./components/ReceivablesTab";
 import KpiCards from "./components/KpiCards";
@@ -23,10 +21,10 @@ import ExpenseModal from "./components/ExpenseModal";
 import EditExpenseModal from "./components/EditExpenseModal";
 import EntityModal from "./components/EntityModal";
 
-export default function App() {
-  const [session, setSession] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
+const LOCAL_USER_EMAIL =
+  import.meta.env.VITE_LOCAL_USER_EMAIL || "davi.rodrish@gmail.com";
 
+export default function App() {
   const [activeTab, setActiveTab] = useState("expenses");
   const [currentMonth, setCurrentMonth] = useState(() => getCurrentYearMonth());
   const [dashboard, setDashboard] = useState(null);
@@ -42,19 +40,6 @@ export default function App() {
 
   const [editingIncome, setEditingIncome] = useState(false);
   const [incomeInput, setIncomeInput] = useState("");
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setAuthLoading(false);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => setSession(newSession)
-    );
-
-    return () => listener.subscription.unsubscribe();
-  }, []);
 
   const loadData = useCallback(async (month) => {
     setLoading(true);
@@ -77,8 +62,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (session) loadData(currentMonth);
-  }, [currentMonth, session, loadData]);
+    loadData(currentMonth);
+  }, [currentMonth, loadData]);
 
   const runAction = async (fn, onSuccess) => {
     setError("");
@@ -172,13 +157,10 @@ export default function App() {
     return receivables.entries.filter((e) => e.status === "pending").length;
   }, [receivables]);
 
-  if (authLoading) return null;
-  if (!session) return <Login />;
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col md:flex-row">
       <Sidebar
-        userEmail={session.user?.email}
+        userEmail={LOCAL_USER_EMAIL}
         currentMonth={currentMonth}
         onPrevMonth={() => setCurrentMonth((m) => shiftMonth(m, -1))}
         onNextMonth={() => setCurrentMonth((m) => shiftMonth(m, 1))}
@@ -191,7 +173,7 @@ export default function App() {
           )
         }
         onOpenEntityModal={() => setShowEntityModal(true)}
-        onSignOut={() => supabase.auth.signOut()}
+        onSignOut={() => {}}
       />
 
       <div className="flex-1 min-w-0 pb-24">
