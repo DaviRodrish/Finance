@@ -1,6 +1,6 @@
 """Regras de negócio compartilhadas entre despesas (a pagar) e cobranças (a receber)."""
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException
@@ -11,6 +11,10 @@ from . import models, schemas
 
 ZERO = Decimal("0.00")
 RECURRING_MONTHS = 12
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 @dataclass(frozen=True)
@@ -99,7 +103,7 @@ def create_launch(db: Session, k: Kind, user_id: str, p, etype: str = "installme
     items = _plan(etype, p.start_month, total, first)
     extra = {"expense_type": etype} if k is EXPENSE else {}
     parent = k.parent(
-        user_id=user_id, entity_id=p.entity_id, description=p.description,
+        user_id=user_id, entity_id=p.entity_id, description=p.description.strip(),
         total_amount=p.amount * len(items), installment_amount=p.amount,
         total_installments=total, start_month=p.start_month, **extra,
     )
@@ -107,7 +111,7 @@ def create_launch(db: Session, k: Kind, user_id: str, p, etype: str = "installme
     db.flush()
     db.add_all([
         k.entry(
-            **{k.fk: parent.id}, user_id=user_id, entity_id=p.entity_id, description=p.description,
+            **{k.fk: parent.id}, user_id=user_id, entity_id=p.entity_id, description=p.description.strip(),
             reference_month=month, installment_number=num, total_installments=tot,
             amount=p.amount, status="pending",
         )
@@ -128,6 +132,9 @@ def extend_recurring(db: Session, expense_id: int, months: int, user_id: str) ->
         .order_by(models.MonthlyEntry.reference_month.desc())
         .first()
     )
+    if not last:
+        raise HTTPException(400, "Despesa fixa sem parcelas para estender")
+
     db.add_all([
         models.MonthlyEntry(
             user_id=user_id, expense_id=expense.id, entity_id=expense.entity_id,
@@ -152,12 +159,12 @@ def update_entry(db: Session, k: Kind, entry_id: int, data, apply_future: bool, 
         .all()
         if apply_future else [entry]
     )
-    changes = {f: v for f, v in data.model_dump().items() if v is not None}
+    changes = {f: v.strip() if isinstance(v, str) else v for f, v in data.model_dump().items() if v is not None}
     for target in targets:
         for field, value in changes.items():
             setattr(target, field, value)
         if "status" in changes:
-            setattr(target, k.done_at, datetime.utcnow() if changes["status"] == k.done else None)
+            setattr(target, k.done_at, _now_utc() if changes["status"] == k.done else None)
     db.commit()
     db.refresh(entry)
     return entry
@@ -187,7 +194,7 @@ def settle_entity(db: Session, k: Kind, month: str, entity_id: int, user_id: str
         db.query(k.entry)
         .filter(k.entry.user_id == user_id, k.entry.reference_month == month,
                 k.entry.entity_id == entity_id, k.entry.status != k.done)
-        .update({"status": k.done, k.done_at: datetime.utcnow()})
+        .update({"status": k.done, k.done_at: _now_utc()}, synchronize_session="fetch")
     )
     db.commit()
     return updated

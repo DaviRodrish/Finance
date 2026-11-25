@@ -22,4 +22,23 @@ export const shiftMonth = (ym, delta) => {
   return `${ny}-${String(nm).padStart(2, "0")}`;
 };
 
-export const parseMoney = (val) => Number(String(val || 0).replace(",", "."));
+export const getCurrentYearMonth = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+};
+
+export const parseMoney = (val) => {
+  if (typeof val === "number") return Number.isFinite(val) ? val : 0;
+  let str = String(val ?? "").trim().replace(/\s+/g, "");
+  if (!str) return 0;
+
+  // Se houver vírgula e ponto, assume formato pt-BR (1.234,56)
+  if (str.includes(",") && str.includes(".")) {
+    str = str.replace(/\./g, "").replace(",", ".");
+  } else if (str.includes(",")) {
+    str = str.replace(",", ".");
+  }
+
+  const num = Number(str);
+  return Number.isFinite(num) ? num : 0;
+};

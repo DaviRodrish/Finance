@@ -9,12 +9,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { api } from "../services/api";
-
-const formatBRL = (val) =>
-  Number(val || 0).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
+import { formatBRL, parseMoney } from "../utils/format";
 
 export default function ReceivablesTab({
   currentMonth,
@@ -26,6 +21,7 @@ export default function ReceivablesTab({
 }) {
   const [selectedEntity, setSelectedEntity] = useState("all");
   const [editingEntry, setEditingEntry] = useState(null);
+  const [actionError, setActionError] = useState("");
   const [editForm, setEditForm] = useState({
     description: "",
     amount: "",
@@ -41,18 +37,32 @@ export default function ReceivablesTab({
     );
   }, [receivables, selectedEntity]);
 
+  const runReceivableAction = async (fn, closeModal = false) => {
+    setActionError("");
+    try {
+      await fn();
+      if (closeModal) setEditingEntry(null);
+      await onRefresh(currentMonth);
+    } catch (err) {
+      setActionError(err.message || "Erro ao atualizar cobrança.");
+    }
+  };
+
   const handleToggleStatus = async (entry) => {
     const nextStatus = entry.status === "received" ? "pending" : "received";
-    await api.updateReceivableEntry(entry.id, { status: nextStatus }, false);
-    await onRefresh(currentMonth);
+    await runReceivableAction(() =>
+      api.updateReceivableEntry(entry.id, { status: nextStatus }, false)
+    );
   };
 
   const handleReceiveAllEntity = async (entityId) => {
-    await api.receiveAllEntity(currentMonth, entityId);
-    await onRefresh(currentMonth);
+    await runReceivableAction(() =>
+      api.receiveAllEntity(currentMonth, entityId)
+    );
   };
 
   const openEditModal = (entry) => {
+    setActionError("");
     setEditingEntry(entry);
     setEditForm({
       description: entry.description,
@@ -65,35 +75,52 @@ export default function ReceivablesTab({
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (!editingEntry) return;
-    await api.updateReceivableEntry(
-      editingEntry.id,
-      {
-        description: editForm.description.trim(),
-        amount: Number(String(editForm.amount).replace(",", ".")),
-        status: editForm.status,
-      },
-      editForm.applyFuture
+
+    const amount = parseMoney(editForm.amount);
+    if (amount <= 0) {
+      setActionError("Informe um valor maior que zero.");
+      return;
+    }
+
+    await runReceivableAction(
+      () =>
+        api.updateReceivableEntry(
+          editingEntry.id,
+          {
+            description: editForm.description.trim(),
+            amount,
+            status: editForm.status,
+          },
+          editForm.applyFuture
+        ),
+      true
     );
-    setEditingEntry(null);
-    await onRefresh(currentMonth);
   };
 
   const handleDeleteCurrent = async () => {
     if (!editingEntry) return;
-    await api.deleteReceivableEntry(editingEntry.id);
-    setEditingEntry(null);
-    await onRefresh(currentMonth);
+    await runReceivableAction(
+      () => api.deleteReceivableEntry(editingEntry.id),
+      true
+    );
   };
 
   const handleDeleteAll = async () => {
     if (!editingEntry) return;
-    await api.deleteReceivable(editingEntry.receivable_id);
-    setEditingEntry(null);
-    await onRefresh(currentMonth);
+    await runReceivableAction(
+      () => api.deleteReceivable(editingEntry.receivable_id),
+      true
+    );
   };
 
   return (
     <div className="space-y-5">
+      {actionError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+          {actionError}
+        </div>
+      )}
+
       {/* KPIs de Cobranças */}
       {receivables && (
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
@@ -132,7 +159,7 @@ export default function ReceivablesTab({
               {formatBRL(receivables.total_pending)}
             </p>
             <p className="text-xs text-slate-400 mt-1.5">
-              Ainda aguardando pagamento
+              Ainda a aguardar pagamento
             </p>
           </div>
         </section>
@@ -143,6 +170,7 @@ export default function ReceivablesTab({
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <div className="flex flex-wrap items-center gap-1.5">
             <button
+              type="button"
               onClick={() => setSelectedEntity("all")}
               className={`px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
                 selectedEntity === "all"
@@ -155,6 +183,7 @@ export default function ReceivablesTab({
             {entities.map((ent) => (
               <button
                 key={ent.id}
+                type="button"
                 onClick={() => setSelectedEntity(String(ent.id))}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
                   selectedEntity === String(ent.id)
@@ -173,6 +202,7 @@ export default function ReceivablesTab({
 
           {selectedEntity !== "all" && (
             <button
+              type="button"
               onClick={() => handleReceiveAllEntity(Number(selectedEntity))}
               className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition cursor-pointer"
             >
@@ -182,13 +212,14 @@ export default function ReceivablesTab({
         </div>
 
         {loading ? (
-          <p className="text-sm text-slate-400 py-8 text-center">Carregando...</p>
+          <p className="text-sm text-slate-400 py-8 text-center">A carregar...</p>
         ) : filteredEntries.length === 0 ? (
           <div className="text-center py-8 space-y-2">
             <p className="text-sm text-slate-500">
-              Nenhuma cobrança registrada neste mês.
+              Nenhuma cobrança registada neste mês.
             </p>
             <button
+              type="button"
               onClick={onOpenNewModal}
               className="text-xs font-medium text-blue-600 hover:underline cursor-pointer"
             >
@@ -206,6 +237,7 @@ export default function ReceivablesTab({
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <button
+                      type="button"
                       onClick={() => handleToggleStatus(entry)}
                       className="text-slate-400 hover:text-emerald-600 transition shrink-0 cursor-pointer"
                       title={
@@ -256,6 +288,7 @@ export default function ReceivablesTab({
                       {formatBRL(entry.amount)}
                     </p>
                     <button
+                      type="button"
                       onClick={() => openEditModal(entry)}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                       title="Editar ou excluir cobrança"
@@ -285,6 +318,7 @@ export default function ReceivablesTab({
                 )}
               </div>
               <button
+                type="button"
                 onClick={() => setEditingEntry(null)}
                 className="text-xs text-slate-400 hover:text-slate-700 cursor-pointer"
               >
@@ -326,7 +360,7 @@ export default function ReceivablesTab({
 
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Status
+                    Estado
                   </label>
                   <select
                     value={editForm.status}
@@ -364,7 +398,7 @@ export default function ReceivablesTab({
                 type="submit"
                 className="w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-800 transition cursor-pointer"
               >
-                Salvar alterações
+                Guardar alterações
               </button>
             </form>
 
@@ -399,3 +433,4 @@ export default function ReceivablesTab({
     </div>
   );
 }
+

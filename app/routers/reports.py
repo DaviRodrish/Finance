@@ -19,7 +19,7 @@ def _sum_by_month(db, model, year: int, user_id: str) -> dict:
     )
 
 
-@router.get("/{year}", response_model=schemas.YearReport)  # NOVO
+@router.get("/{year}", response_model=schemas.YearReport)
 def year_report(year: Annotated[int, Path(ge=2000, le=2100)], db: Db, user_id: User):
     income = _sum_by_month(db, models.MonthlyIncome, year, user_id)
     expenses = _sum_by_month(db, models.MonthlyEntry, year, user_id)
@@ -27,8 +27,16 @@ def year_report(year: Annotated[int, Path(ge=2000, le=2100)], db: Db, user_id: U
 
     months = []
     for m in (f"{year}-{i:02d}" for i in range(1, 13)):
-        inc, exp = income.get(m, ZERO), expenses.get(m, ZERO)
-        months.append(schemas.MonthSummary(
-            month=m, income=inc, expenses=exp, receivables=receivables.get(m, ZERO), balance=inc - exp,
-        ))
+        inc = income.get(m, ZERO)
+        exp = expenses.get(m, ZERO)
+        rec = receivables.get(m, ZERO)
+        months.append(
+            schemas.MonthSummary(
+                month=m,
+                income=inc,
+                expenses=exp,
+                receivables=rec,
+                balance=inc - exp,
+            )
+        )
     return schemas.YearReport(year=year, months=months)

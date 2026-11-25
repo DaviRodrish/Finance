@@ -23,9 +23,11 @@ export default function ExpenseModal({
     start_installment: 1,
     start_month: defaultMonth,
   });
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
     if (open) {
+      setFormError("");
       setForm((prev) => ({
         ...prev,
         entity_id: entities.some((e) => String(e.id) === String(prev.entity_id))
@@ -40,32 +42,42 @@ export default function ExpenseModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.entity_id) return;
+    setFormError("");
+
+    if (!form.entity_id) {
+      setFormError("Selecione uma pessoa ou categoria.");
+      return;
+    }
 
     const amountNum = parseMoney(form.amount);
-    const isInstallment = isReceivable
-      ? form.expense_type === "installment"
-      : form.expense_type === "installment";
+    if (amountNum <= 0) {
+      setFormError("Informe um valor maior que zero.");
+      return;
+    }
+
+    const isInstallment = form.expense_type === "installment";
+    const startInst = isInstallment ? Number(form.start_installment) : 1;
+    const totalInst = isInstallment ? Number(form.total_installments) : 1;
+
+    if (isInstallment && startInst > totalInst) {
+      setFormError("A parcela inicial não pode ser maior que o total de parcelas.");
+      return;
+    }
+
+    const payload = {
+      entity_id: Number(form.entity_id),
+      description: form.description.trim(),
+      amount: amountNum,
+      ...(isReceivable ? {} : { expense_type: form.expense_type }),
+      total_installments: totalInst,
+      start_installment: startInst,
+      start_month: form.start_month,
+    };
 
     if (isReceivable) {
-      await onSubmitReceivable({
-        entity_id: Number(form.entity_id),
-        description: form.description.trim(),
-        amount: amountNum,
-        total_installments: isInstallment ? Number(form.total_installments) : 1,
-        start_installment: isInstallment ? Number(form.start_installment) : 1,
-        start_month: form.start_month,
-      });
+      await onSubmitReceivable(payload);
     } else {
-      await onSubmitExpense({
-        entity_id: Number(form.entity_id),
-        description: form.description.trim(),
-        amount: amountNum,
-        expense_type: form.expense_type,
-        total_installments: isInstallment ? Number(form.total_installments) : 1,
-        start_installment: isInstallment ? Number(form.start_installment) : 1,
-        start_month: form.start_month,
-      });
+      await onSubmitExpense(payload);
     }
 
     setForm((prev) => ({
@@ -86,12 +98,19 @@ export default function ExpenseModal({
             {isReceivable ? "Novo Valor a Receber" : "Novo Lançamento"}
           </h3>
           <button
+            type="button"
             onClick={onClose}
             className="text-xs text-slate-400 hover:text-slate-700 cursor-pointer"
           >
             Fechar
           </button>
         </div>
+
+        {formError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-xl text-xs">
+            {formError}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>

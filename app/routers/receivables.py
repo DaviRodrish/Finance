@@ -27,19 +27,24 @@ def delete_receivable(receivable_id: int, db: Db, user_id: User):
     return {"message": "Cobrança parcelada removida por completo"}
 
 
-@router.get("/receivable-entries/overdue", response_model=list[schemas.ReceivableEntryOut])  # NOVO
+@router.get("/receivable-entries/overdue", response_model=list[schemas.ReceivableEntryOut])
 def overdue_receivables(db: Db, user_id: User, before: OptMonthQuery = None):
     return sv.overdue_entries(db, K, before or date.today().strftime("%Y-%m"), user_id)
 
 
-@router.post("/receivable-entries/receive-entity")  # NOVO
+@router.post("/receivable-entries/receive-entity")
 def receive_all_entity(reference_month: MonthQuery, entity_id: int, db: Db, user_id: User):
     return {"updated": sv.settle_entity(db, K, reference_month, entity_id, user_id)}
 
 
 @router.patch("/receivable-entries/{entry_id}", response_model=schemas.ReceivableEntryOut)
-def update_receivable_entry(entry_id: int, payload: schemas.ReceivableEntryUpdate, db: Db, user_id: User,
-                            apply_future: bool = False):
+def update_receivable_entry(
+    entry_id: int,
+    payload: schemas.ReceivableEntryUpdate,
+    db: Db,
+    user_id: User,
+    apply_future: bool = False,
+):
     return sv.update_entry(db, K, entry_id, payload, apply_future, user_id)
 
 

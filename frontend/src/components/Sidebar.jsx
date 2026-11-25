@@ -24,7 +24,7 @@ export default function Sidebar({
   return (
     <aside className="w-full md:w-64 md:shrink-0 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between">
       <div className="p-4 space-y-5">
-        {/* Marca + Usuário */}
+        {/* Marca + Utilizador */}
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-lg font-bold tracking-tight text-slate-900 truncate">
@@ -33,6 +33,7 @@ export default function Sidebar({
             <p className="text-xs text-slate-500 truncate">{userEmail}</p>
           </div>
           <button
+            type="button"
             onClick={onSignOut}
             className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-500 transition cursor-pointer shrink-0"
             title="Sair"
@@ -44,6 +45,7 @@ export default function Sidebar({
         {/* Seletor de Mês */}
         <div className="flex items-center justify-between bg-slate-100 rounded-xl p-1">
           <button
+            type="button"
             onClick={onPrevMonth}
             className="p-1.5 rounded-lg hover:bg-white transition cursor-pointer"
             aria-label="Mês anterior"
@@ -54,6 +56,7 @@ export default function Sidebar({
             {formatMonthLabel(currentMonth)}
           </span>
           <button
+            type="button"
             onClick={onNextMonth}
             className="p-1.5 rounded-lg hover:bg-white transition cursor-pointer"
             aria-label="Próximo mês"
@@ -65,6 +68,7 @@ export default function Sidebar({
         {/* Ação Principal */}
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={onOpenLaunch}
             className="flex-1 flex items-center justify-center gap-1.5 bg-slate-900 text-white px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-800 transition cursor-pointer"
           >
@@ -74,6 +78,7 @@ export default function Sidebar({
             </span>
           </button>
           <button
+            type="button"
             onClick={onOpenEntityModal}
             className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer"
             title="Nova Pessoa / Categoria"
@@ -85,6 +90,7 @@ export default function Sidebar({
         {/* Navegação */}
         <nav className="space-y-1">
           <button
+            type="button"
             onClick={() => setActiveTab("expenses")}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition cursor-pointer ${
               activeTab === "expenses"
@@ -99,6 +105,7 @@ export default function Sidebar({
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab("receivables")}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition cursor-pointer ${
               activeTab === "receivables"
@@ -126,7 +133,7 @@ export default function Sidebar({
       </div>
 
       <div className="hidden md:block p-4 border-t border-slate-100 text-[11px] text-slate-400">
-        Controle financeiro pessoal
+        Controlo financeiro pessoal
       </div>
     </aside>
   );

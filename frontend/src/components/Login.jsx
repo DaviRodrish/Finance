@@ -12,14 +12,19 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (authError) {
-      setError("E-mail ou senha inválidos.");
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (authError) {
+        setError(authError.message || "E-mail ou palavra-passe inválidos.");
+      }
+    } catch {
+      setError("Não foi possível ligar ao serviço de autenticação.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -30,7 +35,7 @@ export default function Login() {
             <Lock className="w-5 h-5" />
           </div>
           <h1 className="text-lg font-bold text-slate-900">Finanças Pessoais</h1>
-          <p className="text-xs text-slate-500">Entre com sua conta individual</p>
+          <p className="text-xs text-slate-500">Entre com a sua conta individual</p>
         </div>
 
         {error && (
@@ -54,7 +59,7 @@ export default function Login() {
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
-              Senha
+              Palavra-passe
             </label>
             <input
               type="password"
@@ -69,10 +74,11 @@ export default function Login() {
             disabled={loading}
             className="w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
           >
-            {loading ? "Entrando..." : "Entrar"}
+            {loading ? "A entrar..." : "Entrar"}
           </button>
         </form>
       </div>
     </div>
   );
 }
+

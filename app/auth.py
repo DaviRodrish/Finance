@@ -1,13 +1,16 @@
 import os
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from supabase import create_client, Client
 from dotenv import load_dotenv
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from supabase import Client, create_client
 
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+
+if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+    raise RuntimeError("Configure SUPABASE_URL e SUPABASE_ANON_KEY no ambiente")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 security = HTTPBearer()
@@ -25,6 +28,8 @@ def get_current_user_id(
                 detail="Sessão inválida ou expirada",
             )
         return str(user_response.user.id)
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

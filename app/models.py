@@ -1,7 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import relationship
 from .database import Base
+
+
+def utc_now():
+    return datetime.now(timezone.utc)
 
 
 class Entity(Base):
@@ -11,7 +15,7 @@ class Entity(Base):
     user_id = Column(String(64), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     color = Column(String(20), nullable=False, default="#3B82F6")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
 
     expenses = relationship("Expense", back_populates="entity", cascade="all, delete-orphan")
     entries = relationship("MonthlyEntry", back_populates="entity", cascade="all, delete-orphan")
@@ -29,7 +33,7 @@ class Expense(Base):
     expense_type = Column(String(20), nullable=False)  # single | installment | recurring
     total_installments = Column(Integer, nullable=False, default=1)
     start_month = Column(String(7), nullable=False)  # YYYY-MM
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
 
     entity = relationship("Entity", back_populates="expenses")
     entries = relationship(
@@ -53,7 +57,7 @@ class MonthlyEntry(Base):
     total_installments = Column(Integer, nullable=False, default=1)
     amount = Column(Numeric(12, 2), nullable=False)
     status = Column(String(20), nullable=False, default="pending")  # pending | paid
-    paid_at = Column(DateTime, nullable=True)
+    paid_at = Column(DateTime(timezone=True), nullable=True)
 
     expense = relationship("Expense", back_populates="entries")
     entity = relationship("Entity", back_populates="entries")
@@ -66,7 +70,7 @@ class MonthlyIncome(Base):
     user_id = Column(String(64), nullable=False, index=True)
     reference_month = Column(String(7), nullable=False, index=True)  # YYYY-MM
     amount = Column(Numeric(12, 2), nullable=False, default=0)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
 
 class Receivable(Base):
@@ -80,7 +84,7 @@ class Receivable(Base):
     installment_amount = Column(Numeric(12, 2), nullable=False)
     total_installments = Column(Integer, nullable=False, default=1)
     start_month = Column(String(7), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
 
     entity = relationship("Entity")
     entries = relationship(
@@ -104,7 +108,7 @@ class ReceivableEntry(Base):
     total_installments = Column(Integer, nullable=False)
     amount = Column(Numeric(12, 2), nullable=False)
     status = Column(String(20), nullable=False, default="pending")  # pending | received
-    received_at = Column(DateTime, nullable=True)
+    received_at = Column(DateTime(timezone=True), nullable=True)
 
     receivable = relationship("Receivable", back_populates="entries")
     entity = relationship("Entity")

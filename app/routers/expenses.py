@@ -14,10 +14,15 @@ K = sv.EXPENSE
 def upsert_income(payload: schemas.IncomeUpsert, db: Db, user_id: User):
     income = (
         db.query(models.MonthlyIncome)
-        .filter(models.MonthlyIncome.user_id == user_id,
-                models.MonthlyIncome.reference_month == payload.reference_month)
+        .filter(
+            models.MonthlyIncome.user_id == user_id,
+            models.MonthlyIncome.reference_month == payload.reference_month,
+        )
         .first()
-    ) or models.MonthlyIncome(user_id=user_id, reference_month=payload.reference_month)
+    ) or models.MonthlyIncome(
+        user_id=user_id,
+        reference_month=payload.reference_month,
+    )
     income.amount = payload.amount
     db.add(income)
     db.commit()
@@ -42,12 +47,12 @@ def delete_expense(expense_id: int, db: Db, user_id: User):
     return {"message": "Lançamento removido"}
 
 
-@router.post("/expenses/{expense_id}/extend")  # NOVO: renova despesa fixa por mais N meses
+@router.post("/expenses/{expense_id}/extend")
 def extend_expense(expense_id: int, db: Db, user_id: User, months: int = Query(12, ge=1, le=60)):
     return {"added": sv.extend_recurring(db, expense_id, months, user_id)}
 
 
-@router.get("/entries/overdue", response_model=list[schemas.MonthlyEntryOut])  # NOVO
+@router.get("/entries/overdue", response_model=list[schemas.MonthlyEntryOut])
 def overdue_entries(db: Db, user_id: User, before: OptMonthQuery = None):
     """Parcelas pendentes de meses anteriores a `before` (padrão: mês atual)."""
     return sv.overdue_entries(db, K, before or date.today().strftime("%Y-%m"), user_id)
@@ -59,8 +64,13 @@ def pay_all_entity(reference_month: MonthQuery, entity_id: int, db: Db, user_id:
 
 
 @router.patch("/entries/{entry_id}", response_model=schemas.MonthlyEntryOut)
-def update_entry(entry_id: int, payload: schemas.MonthlyEntryUpdate, db: Db, user_id: User,
-                 apply_future: bool = False):
+def update_entry(
+    entry_id: int,
+    payload: schemas.MonthlyEntryUpdate,
+    db: Db,
+    user_id: User,
+    apply_future: bool = False,
+):
     return sv.update_entry(db, K, entry_id, payload, apply_future, user_id)
 
 
