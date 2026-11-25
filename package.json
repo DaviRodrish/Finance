@@ -1,0 +1,26 @@
+{
+  "name": "finance",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev:back": ".\\venv\\Scripts\\python.exe -m uvicorn app.main:app --reload",
+    "dev:front": "npm --prefix frontend run dev",
+    "dev:all": "concurrently -n \"BACK,FRONT\" -c \"blue,green\" \"npm run dev:back\" \"npm run dev:front\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DaviRodrish/Finance.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/DaviRodrish/Finance/issues"
+  },
+  "homepage": "https://github.com/DaviRodrish/Finance#readme",
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}
