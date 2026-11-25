@@ -1,10 +1,19 @@
+import { supabase } from "./supabase";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 async function request(path, options = {}) {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+
   const res = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...options,
   });
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "Erro na requisição");
@@ -21,5 +30,4 @@ export const api = {
   payAllEntity: (month, entityId) =>
     request(`/entries/pay-entity?reference_month=${month}&entity_id=${entityId}`, { method: "POST" }),
   upsertIncome: (data) => request("/income", { method: "PUT", body: JSON.stringify(data) }),
-  seedSheet: (month) => request(`/seed/sheet?reference_month=${month}`, { method: "POST" }),
 };

@@ -5,9 +5,9 @@ from .database import Base
 
 
 class ExpenseType(str, enum.Enum):
-    SINGLE = "single"           # À vista / único no mês
-    INSTALLMENT = "installment" # Parcelado (ex: 2/6)
-    RECURRING = "recurring"     # Fixo mensal (ex: Academia, Net)
+    SINGLE = "single"
+    INSTALLMENT = "installment"
+    RECURRING = "recurring"
 
 
 class EntryStatus(str, enum.Enum):
@@ -17,10 +17,12 @@ class EntryStatus(str, enum.Enum):
 
 class Entity(Base):
     __tablename__ = "entities"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_user_entity_name"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), unique=True, nullable=False)  # Ex: Carol, Mamãe, Academia, Dh
-    color = Column(String(20), default="#3B82F6")            # Cor para o gráfico e tags
+    user_id = Column(String(64), index=True, nullable=False)
+    name = Column(String(100), nullable=False)
+    color = Column(String(20), default="#3B82F6")
 
     expenses = relationship("Expense", back_populates="entity")
     entries = relationship("MonthlyEntry", back_populates="entity")
@@ -30,13 +32,14 @@ class Expense(Base):
     __tablename__ = "expenses"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(64), index=True, nullable=False)
     description = Column(String(200), nullable=False)
-    amount = Column(Numeric(10, 2), nullable=False)          # Valor da parcela/mensalidade
+    amount = Column(Numeric(10, 2), nullable=False)
     expense_type = Column(Enum(ExpenseType), default=ExpenseType.SINGLE, nullable=False)
     total_installments = Column(Integer, default=1, nullable=False)
-    start_installment = Column(Integer, default=1, nullable=False) # Ex: 2 se já estiver na 2/6
-    start_month = Column(String(7), nullable=False)          # Formato "YYYY-MM"
-    is_active = Column(Boolean, default=True)                # Para cancelar recorrentes no futuro
+    start_installment = Column(Integer, default=1, nullable=False)
+    start_month = Column(String(7), nullable=False)
+    is_active = Column(Boolean, default=True)
 
     entity_id = Column(Integer, ForeignKey("entities.id"), nullable=False)
 
@@ -48,13 +51,14 @@ class MonthlyEntry(Base):
     __tablename__ = "monthly_entries"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(64), index=True, nullable=False)
     expense_id = Column(Integer, ForeignKey("expenses.id"), nullable=False)
     entity_id = Column(Integer, ForeignKey("entities.id"), nullable=False)
 
-    reference_month = Column(String(7), index=True, nullable=False)  # Formato "YYYY-MM"
+    reference_month = Column(String(7), index=True, nullable=False)
     description = Column(String(200), nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
-    installment_label = Column(String(20), nullable=True)            # Ex: "2/6" ou None se à vista/fixo
+    installment_label = Column(String(20), nullable=True)
     status = Column(Enum(EntryStatus), default=EntryStatus.PENDING, nullable=False)
 
     expense = relationship("Expense", back_populates="entries")
@@ -63,7 +67,9 @@ class MonthlyEntry(Base):
 
 class MonthlyIncome(Base):
     __tablename__ = "monthly_incomes"
+    __table_args__ = (UniqueConstraint("user_id", "reference_month", name="uq_user_month_income"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    reference_month = Column(String(7), unique=True, index=True, nullable=False)  # "YYYY-MM"
+    user_id = Column(String(64), index=True, nullable=False)
+    reference_month = Column(String(7), index=True, nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)

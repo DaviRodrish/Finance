@@ -9,8 +9,7 @@ import {
   TrendingDown,
   PiggyBank,
   UserPlus,
-  Database,
-  Trash2,
+  LogOut,
 } from "lucide-react";
 import {
   PieChart,
@@ -24,6 +23,8 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "./services/api";
+import { supabase } from "./services/supabase";
+import Login from "./components/Login";
 
 const formatBRL = (val) =>
   Number(val || 0).toLocaleString("pt-BR", {
@@ -47,11 +48,14 @@ const shiftMonth = (ym, delta) => {
 };
 
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [currentMonth, setCurrentMonth] = useState("2026-11");
   const [dashboard, setDashboard] = useState(null);
   const [entities, setEntities] = useState([]);
   const [selectedEntity, setSelectedEntity] = useState("all");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   // Modais
@@ -76,6 +80,19 @@ export default function App() {
   // Form Nova Entidade
   const [newEntity, setNewEntity] = useState({ name: "", color: "#3B82F6" });
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
   const loadData = async (month = currentMonth) => {
     setLoading(true);
     setError("");
@@ -98,9 +115,11 @@ export default function App() {
   };
 
   useEffect(() => {
-    setForm((prev) => ({ ...prev, start_month: currentMonth }));
-    loadData(currentMonth);
-  }, [currentMonth]);
+    if (session) {
+      setForm((prev) => ({ ...prev, start_month: currentMonth }));
+      loadData(currentMonth);
+    }
+  }, [currentMonth, session]);
 
   const handleToggleStatus = async (entry) => {
     const nextStatus = entry.status === "paid" ? "pending" : "paid";
@@ -117,7 +136,7 @@ export default function App() {
     e.preventDefault();
     await api.upsertIncome({
       reference_month: currentMonth,
-      amount: Number(incomeInput.replace(",", ".")),
+      amount: Number(String(incomeInput).replace(",", ".")),
     });
     setEditingIncome(false);
     await loadData(currentMonth);
@@ -159,34 +178,34 @@ export default function App() {
     await loadData(currentMonth);
   };
 
-  const handleSeed = async () => {
-    await api.seedSheet(currentMonth);
-    await loadData(currentMonth);
-  };
-
   const filteredEntries = useMemo(() => {
     if (!dashboard?.entries) return [];
     if (selectedEntity === "all") return dashboard.entries;
     return dashboard.entries.filter((e) => e.entity.id === Number(selectedEntity));
   }, [dashboard, selectedEntity]);
 
+  if (authLoading) return null;
+  if (!session) return <Login />;
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-24">
       {/* Topbar */}
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-slate-900">
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 truncate">
               Finanças
             </h1>
-            <p className="text-xs text-slate-500">Controle mensal & prestações</p>
+            <p className="text-xs text-slate-500 truncate">
+              {session.user?.email}
+            </p>
           </div>
 
           {/* Seletor de Mês */}
           <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
             <button
               onClick={() => setCurrentMonth((m) => shiftMonth(m, -1))}
-              className="p-1.5 rounded-lg hover:bg-white transition"
+              className="p-1.5 rounded-lg hover:bg-white transition cursor-pointer"
               aria-label="Mês anterior"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -196,7 +215,7 @@ export default function App() {
             </span>
             <button
               onClick={() => setCurrentMonth((m) => shiftMonth(m, 1))}
-              className="p-1.5 rounded-lg hover:bg-white transition"
+              className="p-1.5 rounded-lg hover:bg-white transition cursor-pointer"
               aria-label="Próximo mês"
             >
               <ChevronRight className="w-4 h-4" />
@@ -207,7 +226,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowEntityModal(true)}
-              className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+              className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer"
               title="Nova Pessoa / Categoria"
             >
               <UserPlus className="w-4 h-4" />
@@ -219,6 +238,13 @@ export default function App() {
               <Plus className="w-4 h-4" />
               <span>Lançar</span>
             </button>
+            <button
+              onClick={() => supabase.auth.signOut()}
+              className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 cursor-pointer"
+              title="Sair"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </header>
@@ -226,7 +252,7 @@ export default function App() {
       <main className="max-w-5xl mx-auto px-4 pt-5 space-y-5">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-            {error} — verifique se o backend está rodando em `http://127.0.0.1:8000` e se a URL do Supabase está correta.
+            {error} — verifique se o backend está rodando e se as variáveis do Supabase estão configuradas.
           </div>
         )}
 
@@ -250,7 +276,7 @@ export default function App() {
                   />
                   <button
                     type="submit"
-                    className="bg-emerald-600 text-white px-3 py-1 rounded-lg text-xs font-medium"
+                    className="bg-emerald-600 text-white px-3 py-1 rounded-lg text-xs font-medium cursor-pointer"
                   >
                     Salvar
                   </button>
@@ -262,7 +288,7 @@ export default function App() {
                   </p>
                   <button
                     onClick={() => setEditingIncome(true)}
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs text-blue-600 hover:underline cursor-pointer"
                   >
                     Editar
                   </button>
@@ -317,10 +343,9 @@ export default function App() {
           </section>
         )}
 
-        {/* Gráficos (Rosca por Pessoa/Categoria + Projeção 6 meses) */}
+        {/* Gráficos */}
         {dashboard && dashboard.entries.length > 0 && (
           <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Rosca */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4">
               <h2 className="text-sm font-semibold text-slate-800 mb-3">
                 Por Pessoa / Categoria
@@ -374,7 +399,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Projeção Próximos 6 Meses */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4">
               <h2 className="text-sm font-semibold text-slate-800 mb-3">
                 Projeção dos Próximos Meses
@@ -393,7 +417,7 @@ export default function App() {
           </section>
         )}
 
-        {/* Filtro por Pessoa + Ação Rápida de Quitar */}
+        {/* Filtro por Pessoa + Lista de Lançamentos */}
         <section className="bg-white rounded-2xl border border-slate-200 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <div className="flex flex-wrap items-center gap-1.5">
@@ -436,21 +460,16 @@ export default function App() {
             )}
           </div>
 
-          {/* Lista de Lançamentos */}
           {loading ? (
             <p className="text-sm text-slate-400 py-8 text-center">Carregando...</p>
           ) : filteredEntries.length === 0 ? (
-            <div className="text-center py-8 space-y-3">
+            <div className="text-center py-8 space-y-2">
               <p className="text-sm text-slate-500">
                 Nenhum lançamento registrado neste mês.
               </p>
-              <button
-                onClick={handleSeed}
-                className="inline-flex items-center gap-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-800 px-3.5 py-2 rounded-xl transition cursor-pointer"
-              >
-                <Database className="w-3.5 h-3.5" />
-                Importar dados da planilha atual
-              </button>
+              <p className="text-xs text-slate-400">
+                Cadastre uma pessoa/categoria no botão + usuário e clique em &ldquo;Lançar&rdquo;.
+              </p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
@@ -523,7 +542,7 @@ export default function App() {
               <h3 className="font-bold text-base">Novo Lançamento</h3>
               <button
                 onClick={() => setShowExpenseModal(false)}
-                className="text-xs text-slate-400 hover:text-slate-700"
+                className="text-xs text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 Fechar
               </button>
@@ -658,7 +677,7 @@ export default function App() {
               <h3 className="font-bold text-base">Nova Pessoa / Categoria</h3>
               <button
                 onClick={() => setShowEntityModal(false)}
-                className="text-xs text-slate-400 hover:text-slate-700"
+                className="text-xs text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 Fechar
               </button>

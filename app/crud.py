@@ -12,8 +12,11 @@ def add_months(ym_str: str, months_to_add: int) -> str:
     return new_dt.strftime("%Y-%m")
 
 
-def create_expense_with_entries(db: Session, payload: schemas.ExpenseCreate) -> models.Expense:
+def create_expense_with_entries(
+    db: Session, payload: schemas.ExpenseCreate, user_id: str
+) -> models.Expense:
     db_expense = models.Expense(
+        user_id=user_id,
         entity_id=payload.entity_id,
         description=payload.description,
         amount=payload.amount,
@@ -23,13 +26,14 @@ def create_expense_with_entries(db: Session, payload: schemas.ExpenseCreate) -> 
         start_month=payload.start_month,
     )
     db.add(db_expense)
-    db.flush()  # Gera o ID do expense antes do commit
+    db.flush()
 
     entries_to_create = []
 
     if payload.expense_type == models.ExpenseType.SINGLE:
         entries_to_create.append(
             models.MonthlyEntry(
+                user_id=user_id,
                 expense_id=db_expense.id,
                 entity_id=payload.entity_id,
                 reference_month=payload.start_month,
@@ -41,7 +45,6 @@ def create_expense_with_entries(db: Session, payload: schemas.ExpenseCreate) -> 
         )
 
     elif payload.expense_type == models.ExpenseType.INSTALLMENT:
-        # Gera da parcela inicial (ex: 2) até a parcela final (ex: 6)
         remaining_installments = payload.total_installments - payload.start_installment + 1
         for offset in range(remaining_installments):
             current_num = payload.start_installment + offset
@@ -50,6 +53,7 @@ def create_expense_with_entries(db: Session, payload: schemas.ExpenseCreate) -> 
 
             entries_to_create.append(
                 models.MonthlyEntry(
+                    user_id=user_id,
                     expense_id=db_expense.id,
                     entity_id=payload.entity_id,
                     reference_month=target_month,
@@ -61,13 +65,13 @@ def create_expense_with_entries(db: Session, payload: schemas.ExpenseCreate) -> 
             )
 
     elif payload.expense_type == models.ExpenseType.RECURRING:
-        # Projeta 12 meses à frente automaticamente
         for offset in range(12):
             target_month = add_months(payload.start_month, offset)
             entry_status = payload.status if offset == 0 else models.EntryStatus.PENDING
 
             entries_to_create.append(
                 models.MonthlyEntry(
+                    user_id=user_id,
                     expense_id=db_expense.id,
                     entity_id=payload.entity_id,
                     reference_month=target_month,
@@ -84,29 +88,38 @@ def create_expense_with_entries(db: Session, payload: schemas.ExpenseCreate) -> 
     return db_expense
 
 
-def get_monthly_dashboard(db: Session, reference_month: str) -> schemas.DashboardResponse:
+def get_monthly_dashboard(
+    db: Session, reference_month: str, user_id: str
+) -> schemas.DashboardResponse:
     entries = (
         db.query(models.MonthlyEntry)
-        .filter(models.MonthlyEntry.reference_month == reference_month)
+        .filter(
+            models.MonthlyEntry.user_id == user_id,
+            models.MonthlyEntry.reference_month == reference_month,
+        )
         .order_by(models.MonthlyEntry.entity_id, models.MonthlyEntry.id)
         .all()
     )
 
     income_record = (
         db.query(models.MonthlyIncome)
-        .filter(models.MonthlyIncome.reference_month == reference_month)
+        .filter(
+            models.MonthlyIncome.user_id == user_id,
+            models.MonthlyIncome.reference_month == reference_month,
+        )
         .first()
     )
     income = Decimal(income_record.amount) if income_record else Decimal("0.00")
 
     total_expenses = sum((Decimal(e.amount) for e in entries), Decimal("0.00"))
-    total_paid = sum((Decimal(e.amount) for e in entries if e.status == models.EntryStatus.PAID), Decimal("0.00"))
+    total_paid = sum(
+        (Decimal(e.amount) for e in entries if e.status == models.EntryStatus.PAID),
+        Decimal("0.00"),
+    )
     total_pending = total_expenses - total_paid
     remaining = income - total_expenses
-
     commitment_pct = round(float((total_expenses / income) * 100), 1) if income > 0 else 0.0
 
-    # Agrupamento por Pessoa/Categoria (para o gráfico de rosca e resumo por pessoa)
     entity_map = {}
     for entry in entries:
         eid = entry.entity_id
@@ -131,16 +144,17 @@ def get_monthly_dashboard(db: Session, reference_month: str) -> schemas.Dashboar
         pct = round(float((item["total_amount"] / total_expenses) * 100), 1) if total_expenses > 0 else 0.0
         by_entity.append(schemas.EntityBreakdown(**item, percentage=pct))
 
-    # Ordena do maior gasto para o menor
     by_entity.sort(key=lambda x: x.total_amount, reverse=True)
 
-    # Projeção dos próximos 6 meses (incluindo o atual)
     next_6_months = []
     for i in range(6):
         m = add_months(reference_month, i)
         m_total = (
             db.query(func.coalesce(func.sum(models.MonthlyEntry.amount), 0))
-            .filter(models.MonthlyEntry.reference_month == m)
+            .filter(
+                models.MonthlyEntry.user_id == user_id,
+                models.MonthlyEntry.reference_month == m,
+            )
             .scalar()
         )
         next_6_months.append(schemas.MonthlyProjection(month=m, total_amount=Decimal(m_total)))
