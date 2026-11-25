@@ -10,17 +10,18 @@ import {
   PiggyBank,
   UserPlus,
   LogOut,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
   BarChart,
   Bar,
   XAxis,
   YAxis,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  Cell,
 } from "recharts";
 import { api } from "./services/api";
 import { supabase } from "./services/supabase";
@@ -61,6 +62,7 @@ export default function App() {
   // Modais
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showEntityModal, setShowEntityModal] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
 
   // Edição de ganhos
   const [editingIncome, setEditingIncome] = useState(false);
@@ -77,7 +79,15 @@ export default function App() {
     start_month: "2026-11",
   });
 
-  // Form Nova Entidade
+  // Form Editar Lançamento
+  const [editForm, setEditForm] = useState({
+    description: "",
+    amount: "",
+    status: "pending",
+    applyFuture: false,
+  });
+
+  // Form Nova Pessoa / Categoria
   const [newEntity, setNewEntity] = useState({ name: "", color: "#3B82F6" });
 
   useEffect(() => {
@@ -104,9 +114,14 @@ export default function App() {
       setDashboard(dashData);
       setEntities(entsData);
       setIncomeInput(String(dashData.income ?? ""));
-      if (entsData.length > 0 && !form.entity_id) {
-        setForm((prev) => ({ ...prev, entity_id: entsData[0].id }));
-      }
+
+      setForm((prev) => {
+        const hasCurrent = entsData.some((e) => String(e.id) === String(prev.entity_id));
+        return {
+          ...prev,
+          entity_id: hasCurrent ? prev.entity_id : (entsData[0]?.id ?? ""),
+        };
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -121,9 +136,62 @@ export default function App() {
     }
   }, [currentMonth, session]);
 
+  const openExpenseModal = () => {
+    setError("");
+    setForm((prev) => {
+      const hasCurrent = entities.some((e) => String(e.id) === String(prev.entity_id));
+      return {
+        ...prev,
+        entity_id: hasCurrent ? prev.entity_id : (entities[0]?.id ?? ""),
+        start_month: currentMonth,
+      };
+    });
+    setShowExpenseModal(true);
+  };
+
+  const openEditEntryModal = (entry) => {
+    setEditingEntry(entry);
+    setEditForm({
+      description: entry.description,
+      amount: String(entry.amount),
+      status: entry.status,
+      applyFuture: Boolean(entry.installment_label),
+    });
+  };
+
+  const handleSaveEditEntry = async (e) => {
+    e.preventDefault();
+    if (!editingEntry) return;
+    await api.updateEntry(
+      editingEntry.id,
+      {
+        description: editForm.description.trim(),
+        amount: Number(String(editForm.amount).replace(",", ".")),
+        status: editForm.status,
+      },
+      editForm.applyFuture
+    );
+    setEditingEntry(null);
+    await loadData(currentMonth);
+  };
+
+  const handleDeleteCurrentEntry = async () => {
+    if (!editingEntry) return;
+    await api.deleteEntry(editingEntry.id);
+    setEditingEntry(null);
+    await loadData(currentMonth);
+  };
+
+  const handleDeleteEntireExpense = async () => {
+    if (!editingEntry) return;
+    await api.deleteExpense(editingEntry.expense_id);
+    setEditingEntry(null);
+    await loadData(currentMonth);
+  };
+
   const handleToggleStatus = async (entry) => {
     const nextStatus = entry.status === "paid" ? "pending" : "paid";
-    await api.updateEntry(entry.id, { status: nextStatus });
+    await api.updateEntry(entry.id, { status: nextStatus }, false);
     await loadData(currentMonth);
   };
 
@@ -144,6 +212,11 @@ export default function App() {
 
   const handleCreateExpense = async (e) => {
     e.preventDefault();
+    if (!form.entity_id) {
+      setError("Cadastre uma pessoa ou categoria antes de criar um lançamento.");
+      return;
+    }
+
     const payload = {
       entity_id: Number(form.entity_id),
       description: form.description.trim(),
@@ -155,6 +228,7 @@ export default function App() {
         form.expense_type === "installment" ? Number(form.start_installment) : 1,
       start_month: form.start_month,
     };
+
     await api.createExpense(payload);
     setShowExpenseModal(false);
     setForm((prev) => ({
@@ -171,7 +245,10 @@ export default function App() {
   const handleCreateEntity = async (e) => {
     e.preventDefault();
     if (!newEntity.name.trim()) return;
-    const created = await api.createEntity(newEntity);
+    const created = await api.createEntity({
+      name: newEntity.name.trim(),
+      color: newEntity.color,
+    });
     setNewEntity({ name: "", color: "#3B82F6" });
     setShowEntityModal(false);
     setForm((prev) => ({ ...prev, entity_id: created.id }));
@@ -183,6 +260,24 @@ export default function App() {
     if (selectedEntity === "all") return dashboard.entries;
     return dashboard.entries.filter((e) => e.entity.id === Number(selectedEntity));
   }, [dashboard, selectedEntity]);
+
+  const projectionChartData = useMemo(() => {
+    if (!dashboard?.next_6_months) return [];
+    return dashboard.next_6_months.map((item) => ({
+      month: item.month,
+      total_mensal: Number(item.total_amount || 0),
+    }));
+  }, [dashboard]);
+
+  const entityChartData = useMemo(() => {
+    if (!dashboard?.by_entity) return [];
+    return dashboard.by_entity.map((item) => ({
+      ...item,
+      total_num: Number(item.total_amount || 0),
+      pago_num: Number(item.paid_amount || 0),
+      pendente_num: Number(item.pending_amount || 0),
+    }));
+  }, [dashboard]);
 
   if (authLoading) return null;
   if (!session) return <Login />;
@@ -232,7 +327,7 @@ export default function App() {
               <UserPlus className="w-4 h-4" />
             </button>
             <button
-              onClick={() => setShowExpenseModal(true)}
+              onClick={openExpenseModal}
               className="flex items-center gap-1.5 bg-slate-900 text-white px-3.5 py-2 rounded-xl text-sm font-medium hover:bg-slate-800 transition cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -252,7 +347,7 @@ export default function App() {
       <main className="max-w-5xl mx-auto px-4 pt-5 space-y-5">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-            {error} — verifique se o backend está rodando e se as variáveis do Supabase estão configuradas.
+            {error}
           </div>
         )}
 
@@ -346,70 +441,98 @@ export default function App() {
         {/* Gráficos */}
         {dashboard && dashboard.entries.length > 0 && (
           <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border border-slate-200 p-4">
-              <h2 className="text-sm font-semibold text-slate-800 mb-3">
-                Por Pessoa / Categoria
-              </h2>
-              <div className="flex items-center gap-4">
-                <div className="w-36 h-36 shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={dashboard.by_entity}
-                        dataKey="total_amount"
-                        nameKey="entity_name"
-                        innerRadius={36}
-                        outerRadius={60}
-                        paddingAngle={3}
-                      >
-                        {dashboard.by_entity.map((item) => (
-                          <Cell key={item.entity_id} fill={item.color} />
-                        ))}
-                      </Pie>
-                      <RechartsTooltip formatter={(v) => formatBRL(v)} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex-1 space-y-2">
-                  {dashboard.by_entity.map((item) => (
-                    <div
-                      key={item.entity_id}
-                      className="flex items-center justify-between text-xs"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full"
-                          style={{ backgroundColor: item.color }}
-                        />
-                        <span className="font-medium text-slate-700">
-                          {item.entity_name}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-semibold text-slate-900">
-                          {formatBRL(item.total_amount)}
-                        </span>
-                        <span className="text-slate-400 ml-1.5">
-                          ({item.percentage}%)
-                        </span>
-                      </div>
+            {/* Por Pessoa / Categoria */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-800">
+                  Por Pessoa / Categoria
+                </h2>
+                <span className="text-xs text-slate-400">Somatório no mês</span>
+              </div>
+
+              <div className="w-full h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={entityChartData}
+                    layout="vertical"
+                    margin={{ top: 4, right: 12, left: 4, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                    <YAxis
+                      type="category"
+                      dataKey="entity_name"
+                      width={82}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <RechartsTooltip
+                      formatter={(v) => formatBRL(v)}
+                      labelFormatter={(label) => `Pessoa/Categoria: ${label}`}
+                    />
+                    <Bar dataKey="total_num" name="Total" radius={[0, 6, 6, 0]}>
+                      {entityChartData.map((item) => (
+                        <Cell key={item.entity_id} fill={item.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                {entityChartData.map((item) => (
+                  <div
+                    key={item.entity_id}
+                    className="flex items-center justify-between text-xs gap-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="font-medium text-slate-700 truncate">
+                        {item.entity_name}
+                      </span>
+                      <span className="text-[11px] text-slate-400 shrink-0">
+                        (Pago {formatBRL(item.pago_num)} • Pend. {formatBRL(item.pendente_num)})
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-bold text-slate-900">
+                        {formatBRL(item.total_num)}
+                      </span>
+                      <span className="text-slate-400 ml-1">
+                        ({item.percentage}%)
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 p-4">
-              <h2 className="text-sm font-semibold text-slate-800 mb-3">
-                Projeção dos Próximos Meses
-              </h2>
-              <div className="w-full h-36">
+            {/* Projeção dos Próximos Meses */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-slate-800">
+                  Projeção dos Próximos Meses
+                </h2>
+                <span className="text-xs text-slate-400">6 meses</span>
+              </div>
+              <div className="w-full h-52">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dashboard.next_6_months}>
+                  <BarChart data={projectionChartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} width={55} />
-                    <RechartsTooltip formatter={(v) => formatBRL(v)} />
-                    <Bar dataKey="total_amount" fill="#0f172a" radius={[6, 6, 0, 0]} />
+                    <YAxis tick={{ fontSize: 11 }} width={58} />
+                    <RechartsTooltip
+                      formatter={(v) => formatBRL(v)}
+                      labelFormatter={(label) => `Mês: ${label}`}
+                    />
+                    <Bar
+                      dataKey="total_mensal"
+                      name="Total previsto"
+                      fill="#0f172a"
+                      radius={[6, 6, 0, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -517,7 +640,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0">
+                    <div className="flex items-center gap-2.5 shrink-0">
                       <p
                         className={`text-sm font-bold ${
                           isPaid ? "text-slate-400" : "text-slate-900"
@@ -525,6 +648,14 @@ export default function App() {
                       >
                         {formatBRL(entry.amount)}
                       </p>
+                      <button
+                        onClick={() => openEditEntryModal(entry)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                        title="Editar ou excluir lançamento"
+                        aria-label="Editar ou excluir lançamento"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 );
@@ -533,6 +664,124 @@ export default function App() {
           )}
         </section>
       </main>
+
+      {/* Modal Editar / Excluir Lançamento */}
+      {editingEntry && (
+        <div className="fixed inset-0 z-30 bg-black/40 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl p-5 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-base">Editar Lançamento</h3>
+                {editingEntry.installment_label && (
+                  <p className="text-xs text-slate-400">
+                    Parcela {editingEntry.installment_label} • {editingEntry.reference_month}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setEditingEntry(null)}
+                className="text-xs text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditEntry} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Descrição
+                </label>
+                <input
+                  type="text"
+                  value={editForm.description}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, description: e.target.value })
+                  }
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Valor (R$)
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.amount}
+                    onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="pending">Pendente</option>
+                    <option value="paid">Pago</option>
+                  </select>
+                </div>
+              </div>
+
+              {editingEntry.installment_label && (
+                <label className="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 p-3 rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editForm.applyFuture}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, applyFuture: e.target.checked })
+                    }
+                    className="rounded border-slate-300"
+                  />
+                  <span>
+                    Aplicar a este mês e às parcelas/meses seguintes
+                  </span>
+                </label>
+              )}
+
+              <button
+                type="submit"
+                className="w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-800 transition cursor-pointer"
+              >
+                Salvar alterações
+              </button>
+            </form>
+
+            {/* Ações de Exclusão */}
+            <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={handleDeleteCurrentEntry}
+                className="flex items-center gap-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 px-3 py-2 rounded-xl transition cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>
+                  {editingEntry.installment_label ? "Excluir só este mês" : "Excluir lançamento"}
+                </span>
+              </button>
+
+              {editingEntry.installment_label && (
+                <button
+                  type="button"
+                  onClick={handleDeleteEntireExpense}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl transition cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Excluir todas as parcelas</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Novo Lançamento */}
       {showExpenseModal && (
@@ -550,15 +799,32 @@ export default function App() {
 
             <form onSubmit={handleCreateExpense} className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Pessoa / Categoria
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-slate-600">
+                    Pessoa / Categoria
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExpenseModal(false);
+                      setShowEntityModal(true);
+                    }}
+                    className="text-xs text-blue-600 hover:underline cursor-pointer"
+                  >
+                    + Cadastrar nova
+                  </button>
+                </div>
                 <select
                   value={form.entity_id}
                   onChange={(e) => setForm({ ...form, entity_id: e.target.value })}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm"
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white"
                   required
                 >
+                  <option value="" disabled>
+                    {entities.length === 0
+                      ? "Nenhuma pessoa cadastrada ainda"
+                      : "Selecione..."}
+                  </option>
                   {entities.map((ent) => (
                     <option key={ent.id} value={ent.id}>
                       {ent.name}
@@ -603,7 +869,7 @@ export default function App() {
                   <select
                     value={form.expense_type}
                     onChange={(e) => setForm({ ...form, expense_type: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white"
                   >
                     <option value="single">À vista / Único</option>
                     <option value="installment">Parcelado (ex: 2/6)</option>
