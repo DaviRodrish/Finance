@@ -10,8 +10,44 @@ import {
   Cell,
 } from "recharts";
 import { formatBRL } from "../utils/format";
+import { useTheme } from "../hooks/useTheme";
 
 export default function ChartsSection({ dashboard }) {
+  const { theme } = useTheme();
+
+  const c =
+    theme === "dark"
+      ? {
+          grid: "#334155",
+          tick: "#94a3b8",
+          bar: "#e2e8f0",
+          tipBg: "#1e293b",
+          tipBorder: "#475569",
+          tipText: "#f1f5f9",
+          cursor: "rgba(148,163,184,0.12)",
+        }
+      : {
+          grid: "#f1f5f9",
+          tick: "#64748b",
+          bar: "#0f172a",
+          tipBg: "#ffffff",
+          tipBorder: "#e2e8f0",
+          tipText: "#0f172a",
+          cursor: "rgba(15,23,42,0.05)",
+        };
+
+  const tooltipProps = {
+    contentStyle: {
+      background: c.tipBg,
+      border: `1px solid ${c.tipBorder}`,
+      borderRadius: 12,
+      fontSize: 12,
+    },
+    labelStyle: { color: c.tipText },
+    itemStyle: { color: c.tipText },
+    cursor: { fill: c.cursor },
+  };
+
   const entityChartData = useMemo(() => {
     if (!dashboard?.by_entity) return [];
     return dashboard.by_entity.map((item) => ({
@@ -52,18 +88,19 @@ export default function ChartsSection({ dashboard }) {
               <CartesianGrid
                 strokeDasharray="3 3"
                 horizontal={false}
-                stroke="#f1f5f9"
+                stroke={c.grid}
               />
-              <XAxis type="number" tick={{ fontSize: 11 }} />
+              <XAxis type="number" tick={{ fontSize: 11, fill: c.tick }} />
               <YAxis
                 type="category"
                 dataKey="entity_name"
                 width={82}
-                tick={{ fontSize: 11 }}
+                tick={{ fontSize: 11, fill: c.tick }}
               />
               <RechartsTooltip
                 formatter={(v) => formatBRL(v)}
                 labelFormatter={(label) => `Pessoa/Categoria: ${label}`}
+                {...tooltipProps}
               />
               <Bar dataKey="total_num" name="Total" radius={[0, 6, 6, 0]}>
                 {entityChartData.map((item) => (
@@ -117,18 +154,19 @@ export default function ChartsSection({ dashboard }) {
               <CartesianGrid
                 strokeDasharray="3 3"
                 vertical={false}
-                stroke="#f1f5f9"
+                stroke={c.grid}
               />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} width={58} />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: c.tick }} />
+              <YAxis tick={{ fontSize: 11, fill: c.tick }} width={58} />
               <RechartsTooltip
                 formatter={(v) => formatBRL(v)}
                 labelFormatter={(label) => `Mês: ${label}`}
+                {...tooltipProps}
               />
               <Bar
                 dataKey="total_mensal"
                 name="Total previsto"
-                fill="#0f172a"
+                fill={c.bar}
                 radius={[6, 6, 0, 0]}
               />
             </BarChart>

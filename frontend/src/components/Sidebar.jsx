@@ -1,3 +1,4 @@
+import ThemeToggle from "./ThemeToggle";
 import {
   Receipt,
   HandCoins,
@@ -28,7 +29,7 @@ export default function Sidebar({
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-lg font-bold tracking-tight text-slate-900 truncate">
-              Finanças
+              Luzzy
             </h1>
             <p className="text-xs text-slate-500 truncate">{userEmail}</p>
           </div>
@@ -64,6 +65,9 @@ export default function Sidebar({
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Tema */}
+        <ThemeToggle />
 
         {/* Ação Principal */}
         <div className="flex gap-2">
