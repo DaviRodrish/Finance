@@ -17,7 +17,7 @@ def get_receivables_month(reference_month: MonthPath, db: Db, user_id: User):
 
 @router.post("/receivables", response_model=schemas.ReceivablesMonthOut)
 def create_receivable(payload: schemas.ReceivableCreate, db: Db, user_id: User):
-    sv.create_launch(db, K, user_id, payload)
+    sv.create_launch(db, K, user_id, payload, payload.expense_type)
     return sv.receivables_month(db, payload.start_month, user_id)
 
 

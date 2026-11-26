@@ -20,6 +20,7 @@ import ChartsSection from "./components/ChartsSection";
 import ExpenseModal from "./components/ExpenseModal";
 import EditExpenseModal from "./components/EditExpenseModal";
 import EntityModal from "./components/EntityModal";
+import { requestPersistentStorage } from "./services/localDb";
 
 const LOCAL_USER_EMAIL =
   import.meta.env.VITE_LOCAL_USER_EMAIL || "davi.rodrish@gmail.com";
@@ -64,6 +65,11 @@ export default function App() {
   useEffect(() => {
     loadData(currentMonth);
   }, [currentMonth, loadData]);
+
+  // Pede ao navegador para não apagar os dados locais por falta de espaço.
+  useEffect(() => {
+    requestPersistentStorage();
+  }, []);
 
   const runAction = async (fn, onSuccess) => {
     setError("");
@@ -112,6 +118,13 @@ export default function App() {
       () => api.createEntity(payload),
       () => setShowEntityModal(false)
     );
+  };
+
+  // Sem runAction de propósito: o erro 409 (tem lançamentos) precisa chegar ao modal.
+  const handleDeleteEntity = async (id, force = false) => {
+    await api.deleteEntity(id, force);
+    if (selectedEntity === String(id)) setSelectedEntity("all");
+    await loadData(currentMonth);
   };
 
   const handleToggleStatus = async (entry) => {
@@ -174,6 +187,7 @@ export default function App() {
         }
         onOpenEntityModal={() => setShowEntityModal(true)}
         onSignOut={() => {}}
+        onDataChanged={() => loadData(currentMonth)}
       />
 
       <div className="flex-1 min-w-0 pb-24">
@@ -391,6 +405,8 @@ export default function App() {
         open={showEntityModal}
         onClose={() => setShowEntityModal(false)}
         onCreate={handleCreateEntity}
+        entities={entities}
+        onDelete={handleDeleteEntity}
       />
     </div>
   );

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   Circle,
@@ -28,6 +28,16 @@ export default function ReceivablesTab({
     status: "pending",
     applyFuture: false,
   });
+
+  // Se a pessoa filtrada for excluída, volta para "Todos".
+  useEffect(() => {
+    if (
+      selectedEntity !== "all" &&
+      !entities.some((e) => String(e.id) === selectedEntity)
+    ) {
+      setSelectedEntity("all");
+    }
+  }, [entities, selectedEntity]);
 
   const filteredEntries = useMemo(() => {
     if (!receivables?.entries) return [];
@@ -433,4 +443,3 @@ export default function ReceivablesTab({
     </div>
   );
 }
-

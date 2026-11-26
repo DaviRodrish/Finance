@@ -53,13 +53,13 @@ class MonthlyEntryOut(BaseModel):
             return data
         inst_num = getattr(data, "installment_number", None)
         tot_inst = getattr(data, "total_installments", None)
-        exp = getattr(data, "expense", None)
-        etype = getattr(exp, "expense_type", None)
+        rec = getattr(data, "receivable", None)
+        etype = getattr(rec, "expense_type", None)
 
         label = None
         if etype == "recurring":
             label = "Fixo"
-        elif inst_num is not None and tot_inst is not None and tot_inst > 1:
+        elif inst_num and tot_inst and tot_inst > 1:
             label = f"{inst_num}/{tot_inst}"
 
         return {
@@ -113,6 +113,7 @@ class ReceivableCreate(BaseModel):
     entity_id: int
     description: str = Field(min_length=1, max_length=200)
     amount: Decimal = Field(gt=0)
+    expense_type: str = Field(default="single", pattern=r"^(single|installment|recurring)$")
     total_installments: int = Field(default=1, ge=1, le=120)
     start_installment: int = Field(default=1, ge=1)
     start_month: str = Field(pattern=MONTH_RE)

@@ -1,4 +1,3 @@
-import ThemeToggle from "./ThemeToggle";
 import {
   Receipt,
   HandCoins,
@@ -9,6 +8,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { formatMonthLabel } from "../utils/format";
+import ThemeToggle from "./ThemeToggle";
+import DataBackup from "./DataBackup";
 
 export default function Sidebar({
   userEmail,
@@ -21,6 +22,7 @@ export default function Sidebar({
   onOpenLaunch,
   onOpenEntityModal,
   onSignOut,
+  onDataChanged,
 }) {
   return (
     <aside className="w-full md:w-64 md:shrink-0 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between">
@@ -85,7 +87,7 @@ export default function Sidebar({
             type="button"
             onClick={onOpenEntityModal}
             className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer"
-            title="Nova Pessoa / Categoria"
+            title="Pessoas / Categorias"
           >
             <UserPlus className="w-4 h-4" />
           </button>
@@ -136,8 +138,9 @@ export default function Sidebar({
         </nav>
       </div>
 
-      <div className="hidden md:block p-4 border-t border-slate-100 text-[11px] text-slate-400">
-        Controlo financeiro pessoal
+      {/* Backup manual dos dados deste aparelho */}
+      <div className="p-4 border-t border-slate-100">
+        <DataBackup onChanged={onDataChanged} />
       </div>
     </aside>
   );

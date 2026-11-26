@@ -82,6 +82,7 @@ class Receivable(Base):
     description = Column(String(200), nullable=False)
     total_amount = Column(Numeric(12, 2), nullable=False)
     installment_amount = Column(Numeric(12, 2), nullable=False)
+    expense_type = Column(String(20), nullable=False,default="single",server_default="single")
     total_installments = Column(Integer, nullable=False, default=1)
     start_month = Column(String(7), nullable=False)
     created_at = Column(DateTime(timezone=True), default=utc_now)

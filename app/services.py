@@ -101,7 +101,7 @@ def create_launch(db: Session, k: Kind, user_id: str, p, etype: str = "installme
         raise HTTPException(400, "Parcela inicial maior que o total de parcelas")
 
     items = _plan(etype, p.start_month, total, first)
-    extra = {"expense_type": etype} if k is EXPENSE else {}
+    extra = {"expense_type": etype}
     parent = k.parent(
         user_id=user_id, entity_id=p.entity_id, description=p.description.strip(),
         total_amount=p.amount * len(items), installment_amount=p.amount,
