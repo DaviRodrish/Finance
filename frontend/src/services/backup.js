@@ -1,12 +1,15 @@
 // Backup manual em arquivo JSON (independente do Supabase).
 // O mesmo formato é gerado pelo script tools/export_finance_db.py,
 // então este importador também traz os dados do seu finance.db antigo.
-import { db, TABLES, nowMs } from "./localDb";
+import { db, TABLES, nowMs, emitLocalChange } from "./localDb";
+
+// "_pushed" é controle interno da sincronização, não faz parte do backup.
+const stripInternal = ({ _pushed, ...row }) => row;
 
 export async function buildExport() {
   const tables = {};
   for (const name of TABLES) {
-    tables[name] = await db.table(name).toArray();
+    tables[name] = (await db.table(name).toArray()).map(stripInternal);
   }
   return {
     app: "luzzy",
@@ -47,6 +50,7 @@ export function validateBackup(data) {
 }
 
 // Substitui TODOS os dados do aparelho pelos do backup.
+// Os registros importados ficam "pendentes de envio" e sobem na próxima sincronização.
 export async function applyImport(data) {
   validateBackup(data);
   const counts = {};
@@ -55,7 +59,7 @@ export async function applyImport(data) {
       const rows = (data.tables[name] ?? []).map((r) => ({
         updated_at: nowMs(),
         deleted_at: null,
-        ...r,
+        ...stripInternal(r),
         id: Number(r.id),
       }));
       await db.table(name).clear();
@@ -63,6 +67,7 @@ export async function applyImport(data) {
       counts[name] = rows.filter((r) => !r.deleted_at).length;
     }
   });
+  emitLocalChange();
   return counts;
 }
 

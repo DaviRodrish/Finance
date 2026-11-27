@@ -1,6 +1,6 @@
 // Implementação LOCAL da API: mesma interface de antes (os componentes não mudam),
 // mas tudo lê e grava no banco do aparelho (Dexie). Port do services.py.
-import { db, newId, nowMs } from "./localDb";
+import { db, newId, nowMs, emitLocalChange } from "./localDb";
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const RECURRING_MONTHS = 12;
@@ -404,7 +404,7 @@ async function deleteEntity(id, force) {
 }
 
 // ---------- interface pública (mesmos nomes de antes) ----------
-export const api = {
+const rawApi = {
   // Dashboard / Ganhos / Pessoas
   getDashboard: (month) => dashboard(month),
 
@@ -474,3 +474,19 @@ export const api = {
     updateEntry(RECEIVABLE, id, data, applyFuture),
   receiveAllEntity: (month, entityId) => settleEntity(RECEIVABLE, month, entityId),
 };
+
+// Toda função que grava (tudo que não começa com "get") avisa a sincronização.
+export const api = Object.fromEntries(
+  Object.entries(rawApi).map(([name, fn]) =>
+    name.startsWith("get")
+      ? [name, fn]
+      : [
+          name,
+          async (...args) => {
+            const result = await fn(...args);
+            emitLocalChange();
+            return result;
+          },
+        ]
+  )
+);

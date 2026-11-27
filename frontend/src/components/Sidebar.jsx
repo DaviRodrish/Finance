@@ -10,6 +10,7 @@ import {
 import { formatMonthLabel } from "../utils/format";
 import ThemeToggle from "./ThemeToggle";
 import DataBackup from "./DataBackup";
+import SyncPanel from "./SyncPanel";
 
 export default function Sidebar({
   userEmail,
@@ -139,7 +140,8 @@ export default function Sidebar({
       </div>
 
       {/* Backup manual dos dados deste aparelho */}
-      <div className="p-4 border-t border-slate-100">
+      <div className="p-4 border-t border-slate-100 space-y-4">
+        <SyncPanel />
         <DataBackup onChanged={onDataChanged} />
       </div>
     </aside>

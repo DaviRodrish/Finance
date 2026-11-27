@@ -32,6 +32,16 @@ export const TABLES = [
 
 export const nowMs = () => Date.now();
 
+// Avisa a sincronização que algo foi gravado neste aparelho.
+const changeListeners = new Set();
+export function onLocalChange(cb) {
+  changeListeners.add(cb);
+  return () => changeListeners.delete(cb);
+}
+export function emitLocalChange() {
+  changeListeners.forEach((cb) => cb());
+}
+
 // IDs numéricos gerados no aparelho. Ficam na casa de 1,8e15, abaixo do
 // limite seguro do JavaScript (9e15), e cabem em bigint no Postgres.
 // Dois aparelhos não colidem na prática, e as telas continuam usando

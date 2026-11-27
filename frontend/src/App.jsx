@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
   Plus,
   CheckCircle2,
@@ -21,6 +21,7 @@ import ExpenseModal from "./components/ExpenseModal";
 import EditExpenseModal from "./components/EditExpenseModal";
 import EntityModal from "./components/EntityModal";
 import { requestPersistentStorage } from "./services/localDb";
+import { startSync, onRemoteData } from "./services/sync";
 
 const LOCAL_USER_EMAIL =
   import.meta.env.VITE_LOCAL_USER_EMAIL || "davi.rodrish@gmail.com";
@@ -70,6 +71,22 @@ export default function App() {
   useEffect(() => {
     requestPersistentStorage();
   }, []);
+
+  // Sincronização com o Supabase (só age se você entrar na conta).
+  // Quando chegam dados de outro aparelho, recarrega o mês que está na tela.
+  const monthRef = useRef(currentMonth);
+  useEffect(() => {
+    monthRef.current = currentMonth;
+  }, [currentMonth]);
+
+  useEffect(() => {
+    const stopSync = startSync();
+    const stopData = onRemoteData(() => loadData(monthRef.current));
+    return () => {
+      stopSync();
+      stopData();
+    };
+  }, [loadData]);
 
   const runAction = async (fn, onSuccess) => {
     setError("");
